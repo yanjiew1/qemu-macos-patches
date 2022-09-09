@@ -1,0 +1,36 @@
+From b022f3bdf679361ebe114030cf82bb562acf69ec Mon Sep 17 00:00:00 2001
+From: Yan-Jie Wang <ubzeme@gmail.com>
+Date: Wed, 2 Mar 2022 19:41:01 +0800
+Subject: [PATCH v3 8/9] hvf: only consider directly writeable memory regions
+ for dirty-tracking
+
+It is no need to dirty-track MMIO regions or other readonly regions.
+
+Before we start or stop to dirty-track a memory region, check the type of
+the memory region. The region must be a writeable ram to be dirty-tracked.
+
+Signed-off-by: Yan-Jie Wang <ubzeme@gmail.com>
+---
+ accel/hvf/hvf-mem.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/accel/hvf/hvf-mem.c b/accel/hvf/hvf-mem.c
+index 2f70ceb307..60ece20eb4 100644
+--- a/accel/hvf/hvf-mem.c
++++ b/accel/hvf/hvf-mem.c
+@@ -180,6 +180,12 @@ static void hvf_set_dirty_tracking(MemoryRegionSection *section, bool on)
+ {
+     HVFSlot *slot;
+ 
++    if (!memory_region_is_ram(section->mr) ||
++        memory_region_is_rom(section->mr)) {
++        /* do not consider memory regions which are not directly writeable */
++        return;
++    }
++
+     qemu_mutex_lock(&memlock);
+ 
+     slot = hvf_find_overlap_slot(
+-- 
+2.32.0 (Apple Git-132)
+

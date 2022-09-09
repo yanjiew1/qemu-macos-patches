@@ -1,0 +1,56 @@
+From 91811235c1e2b4b4e8e9a1d36bd8b4af89b37762 Mon Sep 17 00:00:00 2001
+From: Yan-Jie Wang <ubzeme@gmail.com>
+Date: Mon, 28 Feb 2022 09:12:14 +0800
+Subject: [PATCH v3 3/9] hvf: use correct data types for addresses in memory
+ related functions
+
+Follow the QEMU coding style. Use hwaddr for guest physical address.
+
+Signed-off-by: Yan-Jie Wang <ubzeme@gmail.com>
+---
+ accel/hvf/hvf-mem.c      | 2 +-
+ include/sysemu/hvf_int.h | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/accel/hvf/hvf-mem.c b/accel/hvf/hvf-mem.c
+index 32452696b6..6b82be3220 100644
+--- a/accel/hvf/hvf-mem.c
++++ b/accel/hvf/hvf-mem.c
+@@ -32,7 +32,7 @@
+ 
+ static hvf_slot memslots[HVF_NUM_SLOTS];
+ 
+-hvf_slot *hvf_find_overlap_slot(uint64_t start, uint64_t size)
++hvf_slot *hvf_find_overlap_slot(hwaddr start, hwaddr size)
+ {
+     hvf_slot *slot;
+     int x;
+diff --git a/include/sysemu/hvf_int.h b/include/sysemu/hvf_int.h
+index 8ee31a16ac..2c4a97debe 100644
+--- a/include/sysemu/hvf_int.h
++++ b/include/sysemu/hvf_int.h
+@@ -22,9 +22,9 @@
+ #define HVF_SLOT_READONLY (1 << 1)
+ 
+ typedef struct hvf_slot {
+-    uint64_t start;
+-    uint64_t size;  /* 0 if the slot is free */
+-    uint64_t offset;  /* offset within memory region */
++    hwaddr start;
++    hwaddr size;  /* 0 if the slot is free */
++    hwaddr offset;  /* offset within memory region */
+     uint32_t flags;
+     MemoryRegion *region;
+ } hvf_slot;
+@@ -58,7 +58,7 @@ int hvf_arch_init(void);
+ int hvf_arch_init_vcpu(CPUState *cpu);
+ void hvf_arch_vcpu_destroy(CPUState *cpu);
+ int hvf_vcpu_exec(CPUState *);
+-hvf_slot *hvf_find_overlap_slot(uint64_t, uint64_t);
++hvf_slot *hvf_find_overlap_slot(hwaddr, hwaddr);
+ int hvf_put_registers(CPUState *);
+ int hvf_get_registers(CPUState *);
+ void hvf_kick_vcpu_thread(CPUState *cpu);
+-- 
+2.32.0 (Apple Git-132)
+

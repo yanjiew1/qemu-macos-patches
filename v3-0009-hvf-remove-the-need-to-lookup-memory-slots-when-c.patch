@@ -1,0 +1,74 @@
+From 31221a62c7512af8a603095c10d015fcc76f87d5 Mon Sep 17 00:00:00 2001
+From: Yan-Jie Wang <ubzeme@gmail.com>
+Date: Wed, 2 Mar 2022 19:52:18 +0800
+Subject: [PATCH v3 9/9] hvf: remove the need to lookup memory slots when
+ clearing dirty-bits
+
+Originally, when log_clear gets called, log_clear calls
+hvf_set_dirty_tracking to write-protect memory slots whose dirty-bits
+are cleared.
+
+Calling hvf_set_dirty_tracking means that memory slots will be
+look up and the lock for memory slots will be held during the call.
+
+We can use the parameter `section` passed by the caller to determine the
+pages that need to be write-protected. Compared to the original method,
+this saves time.
+
+Moreover, this makes only pages whose dirty-bits
+are cleared write-protected instead of making the whole memory slot
+write-protected.
+
+Signed-off-by: Yan-Jie Wang <ubzeme@gmail.com>
+---
+ accel/hvf/hvf-mem.c | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/accel/hvf/hvf-mem.c b/accel/hvf/hvf-mem.c
+index 60ece20eb4..47d23faec8 100644
+--- a/accel/hvf/hvf-mem.c
++++ b/accel/hvf/hvf-mem.c
+@@ -84,7 +84,10 @@ static hwaddr hvf_align_section(MemoryRegionSection *section,
+     size = (size - _delta) & qemu_real_host_page_mask;
+ 
+     *start = _start;
+-    *delta = _delta;
++
++    if (delta) {
++        *delta = _delta;
++    }
+ 
+     return size;
+ }
+@@ -230,11 +233,27 @@ static void hvf_log_stop(MemoryListener *listener,
+ static void hvf_log_clear(MemoryListener *listener,
+                          MemoryRegionSection *section)
+ {
++    hwaddr start, size;
++
++    if (!memory_region_is_ram(section->mr) ||
++        memory_region_is_rom(section->mr)) {
++        /* do not consider memory regions which are not directly writeable */
++        return;
++    }
++
++    if (!memory_region_get_dirty_log_mask(section->mr)) {
++        /* the region is not being dirty-tracked */
++        return;
++    }
++
+     /*
+      * The dirty bits are being cleared.
+      * Make the section write-protected again.
+      */
+-    hvf_set_dirty_tracking(section, 1);
++    size = hvf_align_section(section, &start, NULL);
++    if (size) {
++        hv_vm_protect(start, size, HV_MEMORY_READ | HV_MEMORY_EXEC);
++    }
+ }
+ 
+ static void hvf_region_add(MemoryListener *listener,
+-- 
+2.32.0 (Apple Git-132)
+

@@ -1,0 +1,71 @@
+From 31221a62c7512af8a603095c10d015fcc76f87d5 Mon Sep 17 00:00:00 2001
+From: Yan-Jie Wang <ubzeme@gmail.com>
+Date: Wed, 2 Mar 2022 21:01:59 +0800
+Subject: [PATCH v3 0/9] Many improvements to HVF memory-related codes
+
+changes in v3:
+* Fix last two patches which contain mistakes:
+ - hvf: only consider directly writeable memory regions for
+    dirty-tracking
+ - hvf: remove the need to lookup memory slots when clearing dirty-bits
+
+changes in v2:
+* Rebase to the current master.
+* Correct a mistake in "hvf: simplify data structures and codes of
+  memory related functions" patch
+* add two patches for HVF memory listener. The changes are
+ - only consider directly writeable memory regions for dirty-tracking
+ - in `hvf_log_clear`, use provided `section` (MemoryRegionSection)
+   from the caller to determine the pages that need to write-protected
+   instead of calling hvf_set_dirty_tracking to write-protect the memory
+   slots that contains the pages whose dirty-bits are cleared.
+
+----------
+
+I recently bought a Mac with M1 Pro chip, and use QEMU to setup a Linux
+virtual machine.  QEMU crashed when I started a VM with HVF accelerator
+enabled and with the device, bochs-display, added.
+
+After digging into the source code, I found that dirty-tracking in HVF
+did not work properly, which made QEMU crashed. Therefore I made this
+series of patches to fix the problem.
+
+Followings are the summary of the changes that these patches make:
+ 1. Move HVF memory-related functions and codes into a new file
+    hvf-mem.c
+ 2. Simplify the logics of adding and removing memory regions in HVF
+    memory listener
+ 3. Fix HVF dirty-tracking logics for both Intel and Apple Silicon Macs
+ 4. Use GTree and dynamically-allocated structures to store HVF memory
+    slots instead of fixed-size arrays. This makes memory slots more
+    scalable. It is inspired by the recent changes in Linux kernel
+    (v5.17) that use red-black trees instead of arrays to store
+    in-kernel KVM memory slots.
+ 5. Add a lock to protect the data structures of HVF memory slots
+
+Patches have been tested on Apple Silicon Macs and Intel Macs.
+
+Yan-Jie Wang (9):
+  hvf: move memory related functions from hvf-accel-ops.c to hvf-mem.c
+  hvf: simplify data structures and codes of memory related functions
+  hvf: use correct data types for addresses in memory related functions
+  hvf: rename struct hvf_slot to HVFSlot
+  hvf: fix memory dirty-tracking
+  hvf: add a lock for memory related functions
+  hvf: use GTree to store memory slots instead of fixed-size array
+  hvf: only consider directly writeable memory regions for
+    dirty-tracking
+  hvf: remove the need to lookup memory slots when clearing dirty-bits
+
+ accel/hvf/hvf-accel-ops.c | 221 +-----------------------
+ accel/hvf/hvf-mem.c       | 343 ++++++++++++++++++++++++++++++++++++++
+ accel/hvf/meson.build     |   1 +
+ include/sysemu/hvf_int.h  |  18 +-
+ target/arm/hvf/hvf.c      |   5 +
+ target/i386/hvf/hvf.c     |  25 +--
+ 6 files changed, 359 insertions(+), 254 deletions(-)
+ create mode 100644 accel/hvf/hvf-mem.c
+
+-- 
+2.32.0 (Apple Git-132)
+

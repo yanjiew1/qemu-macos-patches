@@ -1,0 +1,104 @@
+From 855ad7c29897cbc781428622ef72b60019953867 Mon Sep 17 00:00:00 2001
+From: Yan-Jie Wang <ubzeme@gmail.com>
+Date: Mon, 28 Feb 2022 09:41:52 +0800
+Subject: [PATCH v3 6/9] hvf: add a lock for memory related functions
+
+We follow how KVM accel does in its memory listener (kvm-all.c) and add
+a lock for the memory related functions.
+
+Signed-off-by: Yan-Jie Wang <ubzeme@gmail.com>
+---
+ accel/hvf/hvf-mem.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/accel/hvf/hvf-mem.c b/accel/hvf/hvf-mem.c
+index 896e718374..081029ba98 100644
+--- a/accel/hvf/hvf-mem.c
++++ b/accel/hvf/hvf-mem.c
+@@ -43,6 +43,7 @@ typedef struct HVFSlot {
+ } HVFSlot;
+ 
+ static HVFSlot memslots[HVF_NUM_SLOTS];
++static QemuMutex memlock;
+ 
+ static HVFSlot *hvf_find_overlap_slot(hwaddr start, hwaddr size)
+ {
+@@ -140,6 +141,8 @@ static void hvf_set_phys_mem(MemoryRegionSection *section, bool add)
+         readonly = memory_region_is_rom(area) || memory_region_is_romd(area);
+ 
+         /* setup a slot */
++        qemu_mutex_lock(&memlock);
++
+         slot = hvf_find_free_slot();
+         if (!slot) {
+             error_report("No free slots");
+@@ -169,8 +172,12 @@ static void hvf_set_phys_mem(MemoryRegionSection *section, bool add)
+ 
+         ret = hv_vm_map(host_addr, start, size, flags);
+         assert_hvf_ok(ret);
++
++        qemu_mutex_unlock(&memlock);
+     } else {
+         /* remove memory region */
++        qemu_mutex_lock(&memlock);
++
+         slot = hvf_find_overlap_slot(start, size);
+ 
+         if (slot) {
+@@ -179,6 +186,8 @@ static void hvf_set_phys_mem(MemoryRegionSection *section, bool add)
+ 
+             slot->size = 0;
+         }
++
++        qemu_mutex_unlock(&memlock);
+     }
+ }
+ 
+@@ -186,6 +195,8 @@ static void hvf_set_dirty_tracking(MemoryRegionSection *section, bool on)
+ {
+     HVFSlot *slot;
+ 
++    qemu_mutex_lock(&memlock);
++
+     slot = hvf_find_overlap_slot(
+             section->offset_within_address_space,
+             int128_get64(section->size));
+@@ -201,6 +212,8 @@ static void hvf_set_dirty_tracking(MemoryRegionSection *section, bool on)
+         hv_vm_protect((uintptr_t)slot->start, (size_t)slot->size,
+                       HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC);
+     }
++
++    qemu_mutex_unlock(&memlock);
+ }
+ 
+ static void hvf_log_start(MemoryListener *listener,
+@@ -271,10 +284,13 @@ bool hvf_access_memory(hwaddr address, bool write)
+     hv_return_t ret;
+     hwaddr start, size;
+ 
++    qemu_mutex_lock(&memlock);
++
+     slot = hvf_find_overlap_slot(address, 1);
+ 
+     if (!slot || (write && slot->flags & HVF_SLOT_READONLY)) {
+         /* MMIO or unmapped area, return false */
++        qemu_mutex_unlock(&memlock);
+         return false;
+     }
+ 
+@@ -290,10 +306,12 @@ bool hvf_access_memory(hwaddr address, bool write)
+         assert_hvf_ok(ret);
+     }
+ 
++    qemu_mutex_unlock(&memlock);
+     return true;
+ }
+ 
+ void hvf_init_memslots(void)
+ {
++    qemu_mutex_init(&memlock);
+     memory_listener_register(&hvf_memory_listener, &address_space_memory);
+ }
+-- 
+2.32.0 (Apple Git-132)
+

@@ -1,0 +1,122 @@
+From 0fb19e9fa95558593836c702c816204ecbdcbc2d Mon Sep 17 00:00:00 2001
+From: Yan-Jie Wang <ubzeme@gmail.com>
+Date: Mon, 28 Feb 2022 09:15:36 +0800
+Subject: [PATCH v3 4/9] hvf: rename struct hvf_slot to HVFSlot
+
+Follow the QEMU coding style. Structured type names are in CamelCase.
+
+Signed-off-by: Yan-Jie Wang <ubzeme@gmail.com>
+---
+ accel/hvf/hvf-mem.c      | 14 +++++++-------
+ include/sysemu/hvf_int.h |  8 ++++----
+ target/i386/hvf/hvf.c    |  4 ++--
+ 3 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/accel/hvf/hvf-mem.c b/accel/hvf/hvf-mem.c
+index 6b82be3220..b8e9f30e4c 100644
+--- a/accel/hvf/hvf-mem.c
++++ b/accel/hvf/hvf-mem.c
+@@ -30,11 +30,11 @@
+ 
+ #define HVF_NUM_SLOTS 32
+ 
+-static hvf_slot memslots[HVF_NUM_SLOTS];
++static HVFSlot memslots[HVF_NUM_SLOTS];
+ 
+-hvf_slot *hvf_find_overlap_slot(hwaddr start, hwaddr size)
++HVFSlot *hvf_find_overlap_slot(hwaddr start, hwaddr size)
+ {
+-    hvf_slot *slot;
++    HVFSlot *slot;
+     int x;
+     for (x = 0; x < HVF_NUM_SLOTS; ++x) {
+         slot = &memslots[x];
+@@ -46,9 +46,9 @@ hvf_slot *hvf_find_overlap_slot(hwaddr start, hwaddr size)
+     return NULL;
+ }
+ 
+-static hvf_slot *hvf_find_free_slot(void)
++static HVFSlot *hvf_find_free_slot(void)
+ {
+-    hvf_slot *slot;
++    HVFSlot *slot;
+     int x;
+     for (x = 0; x < HVF_NUM_SLOTS; x++) {
+         slot = &memslots[x];
+@@ -91,7 +91,7 @@ static hwaddr hvf_align_section(MemoryRegionSection *section,
+ 
+ static void hvf_set_phys_mem(MemoryRegionSection *section, bool add)
+ {
+-    hvf_slot *slot;
++    HVFSlot *slot;
+     hwaddr start, size, offset, delta;
+     uint8_t *host_addr;
+     MemoryRegion *area = section->mr;
+@@ -172,7 +172,7 @@ static void hvf_set_phys_mem(MemoryRegionSection *section, bool add)
+ 
+ static void hvf_set_dirty_tracking(MemoryRegionSection *section, bool on)
+ {
+-    hvf_slot *slot;
++    HVFSlot *slot;
+ 
+     slot = hvf_find_overlap_slot(
+             section->offset_within_address_space,
+diff --git a/include/sysemu/hvf_int.h b/include/sysemu/hvf_int.h
+index 2c4a97debe..0aafbc9357 100644
+--- a/include/sysemu/hvf_int.h
++++ b/include/sysemu/hvf_int.h
+@@ -17,17 +17,17 @@
+ #include <Hypervisor/hv.h>
+ #endif
+ 
+-/* hvf_slot flags */
++/* HVFSlot flags */
+ #define HVF_SLOT_LOG (1 << 0)
+ #define HVF_SLOT_READONLY (1 << 1)
+ 
+-typedef struct hvf_slot {
++typedef struct HVFSlot {
+     hwaddr start;
+     hwaddr size;  /* 0 if the slot is free */
+     hwaddr offset;  /* offset within memory region */
+     uint32_t flags;
+     MemoryRegion *region;
+-} hvf_slot;
++} HVFSlot;
+ 
+ typedef struct hvf_vcpu_caps {
+     uint64_t vmx_cap_pinbased;
+@@ -58,7 +58,7 @@ int hvf_arch_init(void);
+ int hvf_arch_init_vcpu(CPUState *cpu);
+ void hvf_arch_vcpu_destroy(CPUState *cpu);
+ int hvf_vcpu_exec(CPUState *);
+-hvf_slot *hvf_find_overlap_slot(hwaddr, hwaddr);
++HVFSlot *hvf_find_overlap_slot(hwaddr, hwaddr);
+ int hvf_put_registers(CPUState *);
+ int hvf_get_registers(CPUState *);
+ void hvf_kick_vcpu_thread(CPUState *cpu);
+diff --git a/target/i386/hvf/hvf.c b/target/i386/hvf/hvf.c
+index 4ba6e82fab..2ddb4fc825 100644
+--- a/target/i386/hvf/hvf.c
++++ b/target/i386/hvf/hvf.c
+@@ -113,7 +113,7 @@ void hvf_handle_io(CPUArchState *env, uint16_t port, void *buffer,
+     }
+ }
+ 
+-static bool ept_emulation_fault(hvf_slot *slot, uint64_t gpa, uint64_t ept_qual)
++static bool ept_emulation_fault(HVFSlot *slot, uint64_t gpa, uint64_t ept_qual)
+ {
+     int read, write;
+ 
+@@ -469,7 +469,7 @@ int hvf_vcpu_exec(CPUState *cpu)
+         /* Need to check if MMIO or unmapped fault */
+         case EXIT_REASON_EPT_FAULT:
+         {
+-            hvf_slot *slot;
++            HVFSlot *slot;
+             uint64_t gpa = rvmcs(cpu->hvf->fd, VMCS_GUEST_PHYSICAL_ADDRESS);
+ 
+             if (((idtvec_info & VMCS_IDT_VEC_VALID) == 0) &&
+-- 
+2.32.0 (Apple Git-132)
+
